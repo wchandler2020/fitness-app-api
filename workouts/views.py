@@ -17,6 +17,7 @@ from .serializers import (
     PersonalRecordSerializer,
     WorkoutStatsSerializer,
 )
+from .ai_generator import generate_ai_workout
 
 
 # ==================== EXERCISE LIBRARY ====================
@@ -404,3 +405,120 @@ def personal_records(request):
 
     serializer = PersonalRecordSerializer(prs, many=True)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_ai_workout_view(request):
+    """
+    Generate an AI-powered workout for the authenticated user.
+    Expects a JSON body with preferences, for example:
+    {
+        "fitness_level": "intermediate",
+        "goals": "build muscle",
+        "injuries": "none",
+        "duration": 60,
+        "focus_areas": ["upper body"],
+        "equipment": ["barbell", "dumbbell"],
+        "type": "strength"
+    }
+    """
+    try:
+        # You can pass the entire request.data as preferences, because
+        # generate_ai_workout builds the user_profile internally.
+        preferences = dict(request.data)
+
+        workout_plan = generate_ai_workout(request.user, preferences)
+
+        return Response(workout_plan, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response(
+            {"detail": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_ai_workout(request):
+    """
+    Save an AI-generated workout as a WorkoutLog + ExerciseLogs.
+
+    Expected JSON body (same structure returned by generate_ai_workout_view):
+    {
+        "workout_name": "...",
+        "description": "...",              # optional -> store in notes
+        "estimated_duration": 60,          # optional
+        "warm_up_notes": "...",           # optional
+        "cool_down_notes": "...",         # optional
+        "exercises": [
+            {
+                "exercise_id": 1,
+                "order": 1,
+                "target_sets": 3,
+                "target_reps": "8-12",
+                "rest_seconds": 90,
+                "notes": "Form cues...",
+                "starting_weight_suggestion": "..."
+            }
+        ]
+    }
+    """
+    data = request.data
+    user = request.user
+
+    workout_name = data.get("workout_name") or "AI Generated Workout"
+    description = data.get("description", "")
+    exercises = data.get("exercises", [])
+
+    if not exercises:
+        return Response(
+            {"detail": "No exercises provided."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Create WorkoutLog (adjust fields to match your model)
+    workout_log = WorkoutLog.objects.create(
+        user=user,
+        name=workout_name,
+        notes=description,
+        workout_date=timezone.now().date(),
+        is_template=False,
+    )
+
+    # Create ExerciseLogs
+    for ex in exercises:
+        exercise_id = ex.get("exercise_id")
+        order = ex.get("order", 1)
+        target_sets = ex.get("target_sets", 3)
+        target_reps = ex.get("target_reps", "")
+        rest_seconds = ex.get("rest_seconds", 90)
+        notes = ex.get("notes", "")
+
+        try:
+            exercise = Exercise.objects.get(id=exercise_id)
+        except Exercise.DoesNotExist:
+            # You can choose to skip or fail hard; here we skip invalid ones
+            continue
+
+        # You already use a JSON field `sets_data` elsewhere; for AI workouts
+        # it may start empty because the user hasn't logged actual sets yet.
+        ExerciseLog.objects.create(
+            workout_log=workout_log,
+            exercise=exercise,
+            order=order,
+            sets_data=[],  # no performed sets yet
+            target_sets=target_sets,
+            target_reps=target_reps,
+            target_weight=None,
+            rest_seconds=rest_seconds,
+            notes=notes,
+        )
+
+    response_serializer = WorkoutLogDetailSerializer(workout_log)
+    return Response(
+        {
+            "workout": response_serializer.data,
+            "message": "AI workout saved successfully.",
+        },
+        status=status.HTTP_201_CREATED,
+    )

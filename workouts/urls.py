@@ -21,4 +21,8 @@ urlpatterns = [
     # Analytics & Stats
     path('stats/', views.workout_stats, name='workout-stats'),
     path('personal-records/', views.personal_records, name='personal-records'),
+
+    # AI Workout Generation
+    path('ai/generate/', views.generate_ai_workout_view, name='ai-generate-workout'),
+    path('ai/save/', views.save_ai_workout, name='ai-save-workout'),
 ]

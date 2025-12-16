@@ -1,4 +1,4 @@
-#!/Users/williamchandler/Desktop/fitness-fullstack-api/venv/bin/python
+#!/Users/williamchandler/Desktop/fitness-app-api/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

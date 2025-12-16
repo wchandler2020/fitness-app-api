@@ -95,6 +95,8 @@ class RegisterSerializer(serializers.ModelSerializer):
                 password=validated_data['password'],
                 role=validated_data.get('role', 'client'),
             )
+            user.is_verified = True
+            user.save()
             return user
         except ValidationError as e:
             raise serializers.ValidationError(e.messages)

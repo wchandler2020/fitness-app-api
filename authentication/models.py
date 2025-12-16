@@ -147,4 +147,4 @@ def send_email_verification_on_create(sender, instance, created, **kwargs):
 
 # Connect signals
 post_save.connect(create_user_profile, sender=User)
-post_save.connect(send_email_verification_on_create, sender=User)
+# post_save.connect(send_email_verification_on_create, sender=User)
